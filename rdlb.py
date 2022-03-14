@@ -574,10 +574,8 @@ def eval(args):
     if not args.lamb:
         print('Non-effective lamb provided in args; will try to use lamb in ckpt name')
         try:
-            import re
-            ckpt_file_name = os.path.basename(restore_ckpt_path)
-            # search for a numeric string (possibly in scientific notation) for the lamb value
-            lamb_str = re.search('lamb=(\d*\.?\d+(?:e[+-]?\d+)?)', ckpt_file_name).group(1)
+            from utils import parse_lamb
+            lamb_str = parse_lamb(restore_ckpt_path, strip_pardir=True)
             lamb = float(lamb_str)
             lamb = tf.constant(lamb, dtype='float32')
             print(f'Defaulting lamb to ckpt value = {lamb} instead')
@@ -733,10 +731,10 @@ def parse_args(argv):
             "--y_quick_topn", type=int, default=10,
             help="When using 'quick' for y init, only run hill climbing from this many 'best' centroids.")
         cmd.add_argument(
-            "--y_steps", type=int, default=100,
+            "--y_steps", type=int, default=1000,
             help="Max number of steps to run inner gradient ascent w.r.t. y to compute C_k sample.")
         cmd.add_argument(
-            "--y_tol", type=float, default=1e-3,
+            "--y_tol", type=float, default=1e-6,
             help="Convergence threshold for inner gradient ascent w.r.t. y.")
         cmd.add_argument(
             "--y_lr", type=float, default=1e-2,

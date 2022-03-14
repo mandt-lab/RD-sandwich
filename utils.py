@@ -1,6 +1,5 @@
 # Yibo Yang, 2022
 
-
 # My custom logging code for logging in JSON lines ("jsonl") format
 import json
 
@@ -419,3 +418,61 @@ def diag_gaussian_rdf(variances, num_points=50, distortion='mse'):
     if distortion == 'mse':
         Ds /= n
     return (Ds, Rs)
+
+
+# LB estimator stuff
+def get_xi_samples(E_log_us, log_Ck_samples):
+    r"""
+    E_log_us and log_Ck_samples are two arrays, each of length 2M, as produced by the
+    rdlb.eval. Each pair of E_log_u and log_Ck_sample is produced by one global optimization
+    run on a separate batch of k samples of X.
+    We use the first M entries of log_Ck_samples to set alpha, and the second M parallel
+    entries of E_log_us and log_Ck_samples to compute M \xi samples, with
+    xi_samples[i] := - E_log_us[i] - exp(log_Ck_samples[i] - log_alpha)  - log_alpha + 1
+    ($\xi = - \frac{1}{k} \sum_i \log u (X_i) - C_k/alpha - \log \alpha + 1$). The
+    first M entries of E_log_us are simply ignored.
+
+    :param E_log_us:
+    :param log_Ck_samples:
+    :return:
+    """
+    assert len(E_log_us) == len(log_Ck_samples)
+    M = int(len(E_log_us) / 2)
+    assert M * 2 == len(E_log_us)
+    from scipy.special import logsumexp
+    log_alpha = logsumexp(log_Ck_samples[:M]) - np.log(float(M))
+    xi_samples = -E_log_us[M:] - np.exp(log_Ck_samples[M:] - log_alpha) - log_alpha + 1
+    return xi_samples
+
+
+def parse_lamb(path, strip_pardir=False):
+    # search for a numeric string (possibly in scientific notation) for the lamb value
+    import os, re
+    if strip_pardir:
+        path = os.path.basename(path)
+    return re.search('lamb=(\d*\.?\d+(?:e[+-]?\d+)?)', path).group(1)
+
+
+def aggregate_lb_results(res_files):
+    lambs_to_res_files = {}  # map each lamb to the list of files run with the same lamb
+    for path in res_files:
+        lamb_str = parse_lamb(path, strip_pardir=True)
+        if lamb_str not in lambs_to_res_files:
+            lambs_to_res_files[lamb_str] = []
+        lambs_to_res_files[lamb_str].append(path)
+
+    # Go through each lamb and collect all results with the same lamb (but maybe different seeds)
+    res_dict = {}
+    for lamb_str, npz_files in lambs_to_res_files.items():
+        E_log_us = []
+        log_Ck_samples = []
+        for file in npz_files:  # these are all the same eval runs but with different seeds
+            res = np.load(file)
+            E_log_us.append(res['E_log_us'])
+            log_Ck_samples.append(res['log_Ck_samples'])
+        E_log_us = np.concatenate(E_log_us)
+        log_Ck_samples = np.concatenate(log_Ck_samples)
+        xi_samples_for_lamb = get_xi_samples(E_log_us, log_Ck_samples)
+        res_dict[float(lamb_str)] = xi_samples_for_lamb
+
+    return res_dict
