@@ -72,7 +72,7 @@ def get_args_as_obj(args):
     return args
 
 
-def config_dict_to_str(args_dict, record_keys=tuple(), leave_out_falsy=True, prefix=None, use_abbr=False,
+def config_dict_to_str(args_dict, record_keys=tuple(), leave_out_falsy=True, prefix=None, use_abbr=True,
                        primary_delimiter='-', secondary_delimiter='_'):
     """
     Given a dictionary of cmdline arguments, return a string that identifies the training run.
@@ -217,55 +217,42 @@ def augment_image(image):
     return tf.image.random_flip_left_right(image, seed=None)
 
 
-def maybe_pad_img(x, div: int, padding_mode='reflect', padding_around='center'):
+def maybe_pad_img(x, factor: int):
     """
+    Given an image x, add the minimum amount of padding around it such that the padded img has height and width that
+    are both divisible by a number 'factor'. This is useful for img compression with convolutional autoencoders, where
+    'factor' represents the total downsampling factor of the encoder: when the dimensions of x can't be evenly
+    divided by 'factor', the reconstruction of x as output by the decoder can have a shape that doesn't match
+    x, causing troubles with later computations (e.g., when the img is 34 x 34 and the encoder downsamples by 4, the
+    reconstruction might turn out to be 32 x 32, or 36 x 36, depending on how the convolutions are done).
+    To avoid this, we can first pad the img so that its dimensions can be divided evenly by 'factor', feed the padded
+    img to the autoencoder, then later crop the padding out of the reconstruction.
     Return x_padded, offset
-    :param x:
-    :param div:
-    :param padding_mode:
-    :param padding_around:
+    :param x: a single [H, W, C] img-like tensor
+    :param factor: integer factor used to determine the amount of padding. No padding is done if 'factor' already evenly
+    divides into the dimensions of x.
     :return: x_padded, offset; x_padded is a potentially padded version of x whose height and width are divisible by
     div, and such that, x_padded[offset[0]: (offset[0] + x_size[0]), offset[1]:(offset[1] + x_size[1])] == x
     """
     assert len(x.shape) == 3, 'must be a single RGB image'
-    assert padding_mode in ('interpolate', 'reflect', 'symmetric')
-    x_size = tf.shape(x)[:2]  # img size
-    div = tf.constant([div, div], dtype=tf.int32)
-    ratio = tf.math.ceil(x_size / div)  # say cel([768, 512] / [100, 100]) = [8, 6]
+    img_shape = tf.shape(x)[:2]
+    factor = tf.constant([factor, factor], dtype=tf.int32)
+    ratio = tf.math.ceil(img_shape / factor)  # say cel([768, 512] / [100, 100]) = [8, 6]
     ratio = tf.cast(ratio, tf.int32)
-    padded_size = tf.multiply(ratio, div)
-    if tf.reduce_all(padded_size == x_size):  # special case, no need for padding
+    padded_shape = tf.multiply(ratio, factor)
+    if tf.reduce_all(padded_shape == img_shape):  # special case, no need for padding
         return x, tf.constant([0, 0], dtype=tf.int32)
 
-    if padding_mode == 'interpolate':
-        assert padding_around == 'center'
-
     # offset as in the top left corner of the crop; https://www.tensorflow.org/api_docs/python/tf/image/crop_to_bounding_box
-    if padding_around == 'center':
-        offset = tf.cast(tf.math.floor((padded_size - x_size) / 2), tf.int32)
-    else:
-        assert padding_around == 'bottom_right'
-        offset = tf.constant([0, 0], dtype=tf.int32)
+    offset = tf.cast(tf.math.floor((padded_shape - img_shape) / 2), tf.int32)
+    paddings = np.zeros([3, 2], dtype='int32')
+    slack = padded_shape - img_shape  # e.g., [800, 600] - [768, 512] = [32, 88]
+    # pad around center
+    paddings[0:2, 0] = np.floor(slack / 2)  # e.g., [16, 44]
+    paddings[0:2, 1] = slack - np.floor(slack / 2)
+    x_padded = tf.pad(x, paddings, 'reflect')
 
-    if padding_mode == 'interpolate':
-        # First expand the image to target size, then set x to be in the center
-        x_padded = tf.image.resize(x, padded_size, method='bicubic', preserve_aspect_ratio=False, antialias=True)
-        x_padded = tf.saturate_cast(x_padded, dtype='uint8')
-        x_padded = x_padded.numpy()  # to get around tf tensor not supporting assignment
-        x_padded[offset[0]: (offset[0] + x_size[0]), offset[1]:(offset[1] + x_size[1])] = x
-        x_padded = tf.convert_to_tensor(x_padded)
-    else:  # use tf.pad implementation
-        paddings = np.zeros([3, 2], dtype='int32')
-        slack = padded_size - x_size  # e.g., [800, 600] - [768, 512] = [32, 88]
-        if padding_around == 'center':
-            paddings[0:2, 0] = np.floor(slack / 2)  # e.g., [16, 44]
-            paddings[0:2, 1] = slack - np.floor(slack / 2)
-        else:
-            assert padding_around == 'bottom_right'
-            paddings[0:2, 1] = slack
-        x_padded = tf.pad(x, paddings, padding_mode)
-
-    assert tf.reduce_all(x_padded[offset[0]: (offset[0] + x_size[0]), offset[1]:(offset[1] + x_size[1])] == x)
+    assert tf.reduce_all(x_padded[offset[0]: (offset[0] + img_shape[0]), offset[1]:(offset[1] + img_shape[1])] == x)
     return x_padded, offset
 
 

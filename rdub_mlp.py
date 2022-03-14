@@ -109,7 +109,7 @@ class Model(tf.keras.Model):
         self.decoder = decoder
 
         self._prior = None
-        if self.prior_type == "deep":
+        if self.prior_type == "deep":  # this implements the deep factorized CDF entropy model
             self._prior = tfc.DeepFactorized(
                 batch_shape=[self.latent_dim], dtype=self.dtype)
         elif self.prior_type == 'std_gaussian':  # use 'gmm_1' for gaussian prior with learned mean/scale
@@ -364,7 +364,10 @@ def train(args):
             tf.keras.callbacks.LearningRateScheduler(lr_scheduler),
         ],
     )
-    # model.save_weights(os.path.join(save_dir, f'ckpt-lmbda={args.lmbda}-epoch={args.epochs}'))
+    records = hist.history
+    ckpt_path = os.path.join(save_dir, f"ckpt-lmbda={args.lmbda}-epoch={args.epochs}-loss={records['loss'][-1]:.3f}")
+    model.save_weights(ckpt_path)
+    print('Saved checkpoint to', ckpt_path)
     return hist
 
 
@@ -384,8 +387,10 @@ def parse_args(argv):
 
     # Specifying dataset
     parser.add_argument("--data_dim", type=int, default=None, help="Data dimensionality.")
-    parser.add_argument("--dataset", type=str, default="banana", help="Dataset name/specifier. ")
-    parser.add_argument("--gparams_path", type=str, default=None, help="Path to Gaussian loc/scale params. ")
+    parser.add_argument("--dataset", type=str, default="banana",
+                        help="Dataset specifier. This can be known dataset names ('gaussian'|'banana')"
+                             "handled by gen_dataset, or a path to a numpy array of data vectors.")
+    parser.add_argument("--gparams_path", type=str, default=None, help="Path to custom Gaussian loc/scale params. ")
 
     # Model specific args
     parser.add_argument(
@@ -401,9 +406,11 @@ def parse_args(argv):
     parser.add_argument("--latent_dim", type=int, help="Latent space dimensionality."
                                                        "Will be automatically set to be the same as data_dim if decoder_units=0.")
     parser.add_argument(
-        "--posterior_type", type=str, default='gaussian', help="Posterior type.")
+        "--posterior_type", type=str, default='gaussian', help="Posterior type. One of 'gaussian|iaf|uniform'.")
     parser.add_argument(
-        "--prior_type", type=str, default='deep', help="Prior type.")
+        "--prior_type", type=str, default='deep', help="Prior type. Can be 'deep|maf|std_gaussian' or a factorized"
+                                                       "mixture model specified like 'gmm_2'. Use prior_type='deep' with"
+                                                       "posterior_type='uniform' for a compressive autoencoder (NTC).")
     parser.add_argument(
         "--ar_hidden_units", type=lambda s: [int(i) for i in s.split(',')], default=[10, 10],
         help="A comma delimited list, specifying the number of hidden units per MLP layer in the AutoregressiveNetworks"
@@ -430,26 +437,20 @@ def parse_args(argv):
     subparsers = parser.add_subparsers(
         title="commands", dest="command",
         help="What to do: 'train' loads training data and trains (or continues "
-             "to train) a new model. 'compress' reads an image file (lossless "
-             "PNG format) and writes a compressed binary file. 'decompress' "
-             "reads a binary file and reconstructs the image (in PNG format). "
-             "input and output filenames need to be provided for the latter "
-             "two options. Invoke '<command> -h' for more information.")
+             "to train) a new model. Invoke '<command> -h' for more information.")
 
     # 'train' subcommand.
     train_cmd = subparsers.add_parser(
         "train",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description="Trains (or continues to train) a new model. Note that this "
-                    "model trains on a continuous stream of patches drawn from "
-                    "the training image dataset. An epoch is always defined as "
-                    "the same number of batches given by --steps_per_epoch. "
-                    "The purpose of validation is mostly to evaluate the "
-                    "rate-distortion performance of the model using actual "
-                    "quantization rather than the differentiable proxy loss. "
-                    "Note that when using custom training images, the validation "
-                    "set is simply a random sampling of patches from the "
-                    "training set.")
+        description="Trains (or continues to train) a new model."
+                    "When training on an infinite data stream produced by"
+                    "a generator (see gen_dataset method), the validation set"
+                    "is created from a number of random batches (max_validation_steps)"
+                    "from the generator and kept fixed throughout training."
+                    "When training on a numpy array dataset, the code looks for a corresponding"
+                    "val/test dataset as the validation data; if not found, a random subset of"
+                    "training data is used as validation data.")
 
     train_cmd.add_argument(
         "--batchsize", type=int, default=1024,
