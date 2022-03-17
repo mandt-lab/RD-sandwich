@@ -237,7 +237,7 @@ def train(args, create_model, get_runname):
 
     #### BEGIN: set up learning rate schedule ####
     # https://keras.io/api/callbacks/reduce_lr_on_plateau/
-    from keras_utils import MyReduceLROnPlateauCallback
+    from utils import MyReduceLROnPlateauCallback
     if validation_data:
         monitor_loss = 'val_loss'
     else:  # monitor train loss

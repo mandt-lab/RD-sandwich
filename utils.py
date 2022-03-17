@@ -1,4 +1,55 @@
+# Common utility methods used across the codebase.
 # Yibo Yang, 2022
+
+
+from keras.callbacks import ReduceLROnPlateau
+
+
+class MyReduceLROnPlateauCallback(ReduceLROnPlateau):
+    """
+    My fancier version of keras.callbacks.ReduceLROnPlateau that allows a 'warmup' period during which no action is taken.
+    """
+
+    def __init__(self,
+                 monitor='val_loss',
+                 factor=0.1,
+                 patience=10,
+                 verbose=0,
+                 mode='auto',
+                 min_delta=1e-4,
+                 warmup=0,
+                 cooldown=0,
+                 min_lr=0,
+                 **kwargs):
+        """
+        Same as super class, except no action is taken until the epoch >= `warmup`.
+        :param monitor:
+        :param factor:
+        :param patience:
+        :param verbose:
+        :param mode:
+        :param min_delta:
+        :param warmup:
+        :param cooldown:
+        :param min_lr:
+        :param kwargs:
+        """
+        super().__init__(
+            monitor=monitor,
+            factor=factor,
+            patience=patience,
+            verbose=verbose,
+            mode=mode,
+            min_delta=min_delta,
+            cooldown=cooldown,
+            min_lr=min_lr,
+            **kwargs)
+        self.warmup = warmup
+
+    def on_epoch_end(self, epoch, logs=None):
+        if epoch > self.warmup:
+            super().on_epoch_end(epoch, logs)
+
 
 # My custom logging code for logging in JSON lines ("jsonl") format
 import json
