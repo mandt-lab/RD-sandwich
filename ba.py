@@ -133,11 +133,11 @@ if __name__ == "__main__":
     if args.verbose:
         print('prop of zero bins', np.mean(counts_flat == 0))
     good_pts_ind = (counts_flat != 0)
-    src_alphabet = grid_pts_flat[good_pts_ind]
+    src_alphabet = grid_pts_flat[good_pts_ind]  # remove bins with zero samples from the source alphabet
     src_dist = counts_flat[good_pts_ind]
     src_dist /= src_dist.sum()
 
-    rep_alphabet = grid_pts_flat  # use all grid points from the sample histogram
+    rep_alphabet = grid_pts_flat  # use all grid points from the histogram for the reproduction alphabet
     Rho = vectorized_mse(src_alphabet, rep_alphabet)
 
     if args.verbose:

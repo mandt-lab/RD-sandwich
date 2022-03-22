@@ -422,7 +422,7 @@ def train(args):
                 opt_y = opt_ys[j]
                 log_Ck, log_u = compute_Ckobj(log_u_fun=log_u_model, x=x, y=opt_y, lamb=lamb)
                 log_Ck_samples.append(log_Ck)
-                log_us.append(log_u)  # each is a length B tensor
+                log_us.append(log_u)  # each is a length k tensor
 
             log_avg_Ck = tf.reduce_logsumexp(log_Ck_samples) - log_M
             log_avg_Ck = upper_bound(log_avg_Ck, prev_log_avg_Ck + args.log_E_Ck_max_delta)

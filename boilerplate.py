@@ -456,7 +456,11 @@ def compress(args, create_model, get_runname):
         x_hat = tf.cast(x_hat, tf.float32)
         mse = tf.reduce_mean(tf.math.squared_difference(x, x_hat))
         psnr = tf.squeeze(tf.image.psnr(x, x_hat, 255))
-        msssim = tf.squeeze(tf.image.ssim_multiscale(x, x_hat, 255))
+        im_size = tf.shape(x)[:-1]
+        if im_size[0] < 160 and im_size[1] < 160:  # hack to avoid tf.image.ssim_multiscale crashing on smaller imgs
+            msssim = tf.squeeze(tf.image.ssim(x, x_hat, 255))
+        else:
+            msssim = tf.squeeze(tf.image.ssim_multiscale(x, x_hat, 255))
 
         msssim_db = -10. * tf.math.log(1 - msssim) / tf.math.log(10.)
 

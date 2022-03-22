@@ -2,7 +2,7 @@
 
 This repo contains the source code and data in the ICLR 2022 paper,
 [Towards Empirical Sandwich Bounds on the Rate-Distortion Function](https://arxiv.org/abs/2111.12166).
-This project is a continuation of the method and ideas in an earlier ICLR 2021 workshop paper, [Lower Bounding Rate-Distortion From Samples](https://openreview.net/forum?id=0CqQp8_6GH8).
+For an introduction to this topic, see this blog post: [part 1](https://yiboyang.com/posts/estimating-the-rate-distortion-function-of-real-world-data-part-1/), [part 2](https://yiboyang.com/posts/estimating-the-rate-distortion-function-of-real-world-data-part-2/).
 
 In this work, we make a first attempt at a numerical method for estimating sandwich bounds on the rate-distortion (R-D)
 function of a general data source using i.i.d. samples.
@@ -11,7 +11,7 @@ probabilities known, here we consider *general* (e.g., continuous) alphabets, wi
 other than access to its samples, a common setting in applications like image compression.
 
 We estimate an upper bound on the R-D function using an SGD version of the BA algorithm that is scalable
-to high-resolution image datasets, and draw a close connection to a family of beta-VAEs and neural compression autoencoders. To verify
+to high-resolution image datasets, based on a close theoretical connection to beta-VAEs and neural compression autoencoders. To verify
 the tightness of our upper bounds, we also develop a lower bound algorithm based on Csiszár's dual characterization of
 the R-D function. Due to the associated computational challenges, we restrict to a squared error distortion and a continuous reproduction alphabet,
 and obtain non-trivial lower bound estimates on data with relatively low intrinsic dimensions, ranging from particle
@@ -30,6 +30,9 @@ If you find this work helpful, please consider citing the paper
 
 
 # Overview
+
+To get started, you may want to check out the [demo notebook](demo.ipynb) that estimates the proposed R-D sandwich
+bounds on a 2D Gaussian source, and compares with the BA algorithm and the analytical R-D function.
 
 The main scripts implementing the various algorithms are:
 
