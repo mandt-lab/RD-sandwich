@@ -195,7 +195,7 @@ def train(args, create_model, get_runname):
                     yield sampler(args.batchsize)
 
             train_data_generator = gen()
-            train_dataset = validation_dataset = None
+            train_dataset = None
         elif args.dataset in configs.dataset_to_globs.keys():
             file_glob = configs.dataset_to_globs[args.dataset]
             train_dataset = get_custom_dataset("train", file_glob, args)
@@ -230,9 +230,11 @@ def train(args, create_model, get_runname):
         train_data = train_dataset.prefetch(tf.data.AUTOTUNE)
         validation_dataset = validation_dataset.take(args.validation_steps)
         validation_data = validation_dataset.cache()
-    else:  # train on infinite GAN generated data, no need for validation
+    else:  # train on infinite generator
         train_data = train_data_generator
-        validation_data = None
+        validation_dataset = tf.data.Dataset.from_tensor_slices([x for (i, x) in zip(range(args.validation_steps),
+                                                                                     train_data_generator)])
+        validation_data = validation_dataset.cache()
     ### END: Set up train/val data for model.fit to run on either tf dataset or generator ###
 
     #### BEGIN: set up learning rate schedule ####
